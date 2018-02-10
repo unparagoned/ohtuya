@@ -1,3 +1,10 @@
+"""
+
+A openhab wrapper for pytuya - to control tuya switches
+
+https://github.com/unparagoned/ohtuya
+
+"""
 #OpenhabTuya started as just monitor but with functions it should be easy to make it more generic depending on argument passed
 from __future__ import print_function
 import re
@@ -19,51 +26,36 @@ ipMatch = re.match('.*ip ([0-9\.]*).*', argCommand)
 ppid = str(os.getpid())
 pidfile = "/tmp/njsmon.pid"
 
-class ohtuya(object):
+def pid_exists(pid):
+    """Check whether pid exists in the current process table.
+    UNIX only.
     """
-    
-    A openhab wrapper for pytuya - to control tuya switches
-
-    https://github.com/unparagoned/ohtuya
-
-    """
-    def __init__(self, ip, id, key):
-
-        self.debug = False 
-        #self.oh = openhab()
-        self.device = pytuya.OutletDevice(id, ip, key)
-        #        self.client_id = self.oh.getState('spotify_client_id')
-
-    def pid_exists(pid):
-        """Check whether pid exists in the current process table.
-        UNIX only.
-        """
-        if pid < 0:
+    if pid < 0:
+        return False
+    if pid == 0:
+        # According to "man 2 kill" PID 0 refers to every process
+        # in the process group of the calling process.
+        # On certain systems 0 is a valid PID but we have no way
+        # to know that in a portable fashion.
+        raise ValueError('invalid PID 0')
+    try:
+        os.kill(pid, 0)
+    except OSError as err:
+        if err.errno == errno.ESRCH:
+            # ESRCH == No such process
             return False
-        if pid == 0:
-            # According to "man 2 kill" PID 0 refers to every process
-            # in the process group of the calling process.
-            # On certain systems 0 is a valid PID but we have no way
-            # to know that in a portable fashion.
-            raise ValueError('invalid PID 0')
-        try:
-            os.kill(pid, 0)
-        except OSError as err:
-            if err.errno == errno.ESRCH:
-                # ESRCH == No such process
-                return False
-            elif err.errno == errno.EPERM:
-                # EPERM clearly means there's a process to deny access to
-                return True
-            else:
-                # According to "man 2 kill" possible error values are
-                # (EINVAL, EPERM, ESRCH)
-                raise
-        else:
+        elif err.errno == errno.EPERM:
+            # EPERM clearly means there's a process to deny access to
             return True
+        else:
+            # According to "man 2 kill" possible error values are
+            # (EINVAL, EPERM, ESRCH)
+            raise
+    else:
+        return True
 
-    def getLive():
-        try:
+def getLive():
+    try:
         if (dp): print("doing something start")
         if (dp): print ("argCommand: %s" % argCommand)
         if ipMatch:
@@ -116,9 +108,23 @@ class ohtuya(object):
             if(dp): print("fin")  
             os.unlink(pidfile)
 
+def getStatus(id, ip, key):
+    device = pytuya.OutletDevice(id, ip, key)
+    data = device.status()
+    return data
+    #        self.client_id = self.oh.getState('spotify_client_id')
 
-def main():
-    
+def setStatus(id, ip, key, newState):
+    device = pytuya.OutletDevice(id, ip, key)
+    data = device.set_status(newState)
+    return data
+
+def toggleStatus(id, ip, key, newState):
+    device = pytuya.OutletDevice(id, ip, key)
+    currentState = device.status()
+    data = device.set_status(not currentState)
+    return data
+   
 #file can become read only and cause problems
 if os.path.isfile(pidfile):
     f = open(pidfile, "r")
